@@ -4,7 +4,16 @@ An unofficial, fully local Home Assistant setup for the Inkbird ISC-027BW
 Bluetooth grill controller. It combines a corrected custom integration with a
 predictive Kamado dashboard and reusable iPhone alarms.
 
+## Start here: install the integration
+
+This is the main installation button. It installs the ISC-027BW device support
+and the built-in prediction sensors. It does **not** create an automation
+blueprint.
+
 [![Open this repository in HACS](https://my.home-assistant.io/badges/hacs_repository.svg)](https://my.home-assistant.io/redirect/hacs_repository/?owner=GligaPeter&repository=inkbird-isc027bw-home-assistant&category=integration)
+
+After downloading it in HACS, restart Home Assistant and add **Inkbird
+ISC-027BW BLE** under **Settings → Devices & services → Add integration**.
 
 ## Dashboard preview
 
@@ -84,7 +93,10 @@ temperatures show five minutes of prediction; cooling may show up to 30
 minutes. Meat probes use a 20-minute derivative and an exponential heating
 model toward the chamber temperature.
 
-### 3. Create repeating phone alarms
+### 3. Optional: create repeating phone alarms
+
+The button below installs only the optional iPhone alarm automation. Install
+the integration with the HACS button at the top of this page first.
 
 [![Import the repeating probe alarm blueprint](https://my.home-assistant.io/badges/blueprint_import.svg)](https://my.home-assistant.io/redirect/blueprint_import/?blueprint_url=https%3A%2F%2Fraw.githubusercontent.com%2FGligaPeter%2Finkbird-isc027bw-home-assistant%2Fmain%2Fblueprints%2Fautomation%2Finkbird_isc027bw%2Frepeating_probe_alarm.yaml)
 
