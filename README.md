@@ -32,7 +32,14 @@ predictive Kamado dashboard and reusable iPhone alarms.
 
 ### 1. Install the integration
 
-Until this kit has its own HACS repository and release, install it manually:
+#### HACS custom repository
+
+1. Open **HACS → Integrations → ⋮ → Custom repositories**.
+2. Add `https://github.com/GligaPeter/inkbird-isc027bw-home-assistant` as an
+   **Integration** repository.
+3. Search for **Inkbird ISC-027BW BLE**, download it and restart Home Assistant.
+
+#### Manual installation
 
 1. Copy `custom_components/inkbird_ble` into the `custom_components` directory
    under your Home Assistant configuration directory.

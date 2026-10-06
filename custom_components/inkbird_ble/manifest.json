@@ -9,9 +9,9 @@
   "codeowners": ["@777Timo"],
   "config_flow": true,
   "dependencies": ["bluetooth"],
-  "documentation": "https://github.com/777Timo/inkbird-ble-ha",
+  "documentation": "https://github.com/GligaPeter/inkbird-isc027bw-home-assistant",
   "iot_class": "local_push",
-  "issue_tracker": "https://github.com/777Timo/inkbird-ble-ha/issues",
+  "issue_tracker": "https://github.com/GligaPeter/inkbird-isc027bw-home-assistant/issues",
   "requirements": ["bleak-retry-connector>=3.0.0"],
   "version": "1.3.0"
 }
