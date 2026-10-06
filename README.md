@@ -4,6 +4,8 @@ An unofficial, fully local Home Assistant setup for the Inkbird ISC-027BW
 Bluetooth grill controller. It combines a corrected custom integration with a
 predictive Kamado dashboard and reusable iPhone alarms.
 
+[![Open this repository in HACS](https://my.home-assistant.io/badges/hacs_repository.svg)](https://my.home-assistant.io/redirect/hacs_repository/?owner=GligaPeter&repository=inkbird-isc027bw-home-assistant&category=integration)
+
 ## Dashboard preview
 
 ### Grill temperature, prediction and fan activity
@@ -27,7 +29,8 @@ predictive Kamado dashboard and reusable iPhone alarms.
 - Proper `unavailable` states while disconnected, preventing false zeroes in
   temperature history.
 - A responsive dashboard with grill, fan and three meat-probe sections.
-- One-minute grill trend prediction and 20-minute meat-probe trend smoothing.
+- Built-in one-minute grill trend prediction and 20-minute meat-probe trend
+  smoothing; no prediction package or helper entities are required.
 - Newton's-law-style meat ETA curves, target lines and preset buttons.
 - Dynamic probe sections that show `Sensor not connected` when unplugged.
 - An iOS critical-notification blueprint that repeats every minute until the
@@ -46,7 +49,12 @@ predictive Kamado dashboard and reusable iPhone alarms.
 
 ### 1. Install the integration
 
-#### HACS custom repository
+#### HACS custom repository — recommended
+
+Click **Open this repository in HACS** above, then download the integration and
+restart Home Assistant.
+
+If the button cannot open your Home Assistant instance:
 
 1. Open **HACS → Integrations → ⋮ → Custom repositories**.
 2. Add `https://github.com/GligaPeter/inkbird-isc027bw-home-assistant` as an
@@ -64,23 +72,7 @@ predictive Kamado dashboard and reusable iPhone alarms.
 Do not keep the Inkbird mobile app connected while Home Assistant is using the
 controller. The controller accepts a limited number of active BLE connections.
 
-### 2. Add the prediction helpers
-
-1. Ensure packages are enabled in `configuration.yaml`:
-
-   ```yaml
-   homeassistant:
-     packages: !include_dir_named packages
-   ```
-
-2. Copy `packages/inkbird_prediction.yaml` to your Home Assistant `packages`
-   directory.
-3. Check the entity IDs against [the mapping](docs/ENTITY_IDS.md). Adjust both
-   YAML files if Home Assistant appended a suffix such as `_2`.
-4. Restart Home Assistant. The derivative sensors need several readings before
-   they can produce a stable prediction.
-
-### 3. Add the dashboard
+### 2. Add the dashboard
 
 1. Install **ApexCharts Card** from HACS and refresh the browser.
 2. Create a new dashboard in Home Assistant.
@@ -92,7 +84,11 @@ temperatures show five minutes of prediction; cooling may show up to 30
 minutes. Meat probes use a 20-minute derivative and an exponential heating
 model toward the chamber temperature.
 
-### 4. Create repeating phone alarms
+### 3. Create repeating phone alarms
+
+[![Import the repeating probe alarm blueprint](https://my.home-assistant.io/badges/blueprint_import.svg)](https://my.home-assistant.io/redirect/blueprint_import/?blueprint_url=https%3A%2F%2Fraw.githubusercontent.com%2FGligaPeter%2Finkbird-isc027bw-home-assistant%2Fmain%2Fblueprints%2Fautomation%2Finkbird_isc027bw%2Frepeating_probe_alarm.yaml)
+
+Click **Import the repeating probe alarm blueprint**, or install it manually:
 
 1. Copy
    `blueprints/automation/inkbird_isc027bw/repeating_probe_alarm.yaml` to the
@@ -108,12 +104,20 @@ The automation starts whenever a reading changes from below the target to equal
 to or above it. A jump such as 72 → 74 °C still triggers a 73 °C target. The
 notification repeats every minute until **Acknowledge** is tapped.
 
+## Updating from version 1.3 or earlier
+
+Version 1.4 creates the heating-rate and target-ETA sensors inside the
+integration. Remove `packages/inkbird_prediction.yaml` from your Home Assistant
+configuration before restarting with version 1.4; otherwise the old template
+sensors can occupy the same entity IDs. The dashboard continues to use the same
+entity names.
+
 ## Updating an existing upstream installation
 
 This repository retains the same `inkbird_ble` domain as the original
 integration. Back up your Home Assistant configuration, replace the integration
 directory, restart Home Assistant, and verify the existing entity IDs before
-adding the dashboard package.
+adding the dashboard.
 
 ## Limitations
 

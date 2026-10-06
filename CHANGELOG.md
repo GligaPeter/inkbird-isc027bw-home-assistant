@@ -1,5 +1,13 @@
 # Changelog
 
+## 1.4.0
+
+- Move grill and meat-probe trend calculation into the integration.
+- Create heating-rate and target-ETA sensors automatically.
+- Add English, German and Hungarian names for the prediction entities.
+- Add one-click HACS and alarm-blueprint buttons to the README.
+- Remove the prediction package from the normal installation flow.
+
 ## 1.3.0-community.1
 
 - Preserve requested probe alarm temperatures until the controller confirms

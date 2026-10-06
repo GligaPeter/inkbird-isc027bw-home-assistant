@@ -21,9 +21,9 @@ from . import DOMAIN, InkbirdCoordinator, InkbirdData
 
 @dataclass(frozen=True, kw_only=True)
 class InkbirdSensorDescription(SensorEntityDescription):
-    value_fn: Callable[[InkbirdData], float | int | None]
+    value_fn: Callable[[InkbirdData], float | int | str | None]
     # Wert der gezeigt wird wenn Gerät nicht verbunden ist (None = unknown)
-    offline_value: float | int | None = None
+    offline_value: float | int | str | None = None
 
 
 SENSORS: tuple[InkbirdSensorDescription, ...] = (
@@ -82,6 +82,35 @@ SENSORS: tuple[InkbirdSensorDescription, ...] = (
         value_fn=lambda d: d.grill_target_actual,
         offline_value=None,  # Zieltemp bleibt auf letztem Wert
     ),
+    InkbirdSensorDescription(
+        key="grill_heating_rate",
+        translation_key="grill_heating_rate",
+        name="Grill Heating Rate",
+        native_unit_of_measurement="°C/min",
+        icon="mdi:chart-timeline-variant",
+        value_fn=lambda d: d.grill_heating_rate,
+    ),
+    *(
+        InkbirdSensorDescription(
+            key=f"probe{index}_heating_rate",
+            translation_key=f"probe{index}_heating_rate",
+            name=f"Probe {index} Heating Rate",
+            native_unit_of_measurement="°C/min",
+            icon="mdi:chart-timeline-variant",
+            value_fn=lambda d, index=index: getattr(d, f"probe{index}_heating_rate"),
+        )
+        for index in range(1, 4)
+    ),
+    *(
+        InkbirdSensorDescription(
+            key=f"probe{index}_target_eta",
+            translation_key=f"probe{index}_target_eta",
+            name=f"Probe {index} Target ETA",
+            icon="mdi:timer-outline",
+            value_fn=lambda d, index=index: getattr(d, f"probe{index}_target_eta"),
+        )
+        for index in range(1, 4)
+    ),
 )
 
 
@@ -135,7 +164,17 @@ class InkbirdSensor(SensorEntity):
         )
 
     @property
-    def native_value(self) -> float | int | None:
+    def native_value(self) -> float | int | str | None:
         if not self._coordinator.data.connected:
             return self.entity_description.offline_value
         return self.entity_description.value_fn(self._coordinator.data)
+
+    @property
+    def extra_state_attributes(self) -> dict[str, float] | None:
+        if not self.entity_description.key.endswith("_target_eta"):
+            return None
+        minutes = getattr(
+            self._coordinator.data,
+            self.entity_description.key.replace("_target_eta", "_eta_minutes"),
+        )
+        return {"estimated_minutes": minutes} if minutes is not None else None

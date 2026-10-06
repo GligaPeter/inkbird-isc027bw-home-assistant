@@ -20,7 +20,14 @@
       "probe2": {"name": "Probe 2"},
       "probe3": {"name": "Probe 3"},
       "fan_speed": {"name": "Fan Speed"},
-      "grill_target_actual": {"name": "Target Temperature (Device)"}
+      "grill_target_actual": {"name": "Target Temperature (Device)"},
+      "grill_heating_rate": {"name": "Grill Heating Rate"},
+      "probe1_heating_rate": {"name": "Probe 1 Heating Rate"},
+      "probe2_heating_rate": {"name": "Probe 2 Heating Rate"},
+      "probe3_heating_rate": {"name": "Probe 3 Heating Rate"},
+      "probe1_target_eta": {"name": "Probe 1 Target ETA"},
+      "probe2_target_eta": {"name": "Probe 2 Target ETA"},
+      "probe3_target_eta": {"name": "Probe 3 Target ETA"}
     },
     "number": {
       "target_temp": {"name": "Grill Target Temperature"},

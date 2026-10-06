@@ -20,7 +20,14 @@
       "probe2": {"name": "Sonde 2"},
       "probe3": {"name": "Sonde 3"},
       "fan_speed": {"name": "Lüfter Ist-Drehzahl"},
-      "grill_target_actual": {"name": "Zieltemperatur (Gerät)"}
+      "grill_target_actual": {"name": "Zieltemperatur (Gerät)"},
+      "grill_heating_rate": {"name": "Grill-Aufheizrate"},
+      "probe1_heating_rate": {"name": "Sonde 1 Aufheizrate"},
+      "probe2_heating_rate": {"name": "Sonde 2 Aufheizrate"},
+      "probe3_heating_rate": {"name": "Sonde 3 Aufheizrate"},
+      "probe1_target_eta": {"name": "Sonde 1 Zielzeit"},
+      "probe2_target_eta": {"name": "Sonde 2 Zielzeit"},
+      "probe3_target_eta": {"name": "Sonde 3 Zielzeit"}
     },
     "number": {
       "target_temp": {"name": "Grill-Zieltemperatur"},

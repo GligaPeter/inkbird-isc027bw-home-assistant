@@ -6,6 +6,7 @@ import logging
 import struct
 from collections.abc import Callable
 from dataclasses import dataclass, field
+from datetime import timedelta
 
 from bleak import BleakClient
 from bleak.exc import BleakError
@@ -18,6 +19,9 @@ from homeassistant.components.bluetooth import (
 )
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
+from homeassistant.util import dt as dt_util
+
+from .prediction import TemperatureTrend, eta_state
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -119,6 +123,16 @@ class InkbirdData:
     probe1_alarm: float | None = None
     probe2_alarm: float | None = None
     probe3_alarm: float | None = None
+    grill_heating_rate: float | None = None
+    probe1_heating_rate: float | None = None
+    probe2_heating_rate: float | None = None
+    probe3_heating_rate: float | None = None
+    probe1_target_eta: str | None = None
+    probe2_target_eta: str | None = None
+    probe3_target_eta: str | None = None
+    probe1_eta_minutes: float | None = None
+    probe2_eta_minutes: float | None = None
+    probe3_eta_minutes: float | None = None
     connected: bool = False
 
 
@@ -138,6 +152,34 @@ class InkbirdCoordinator:
         self._pending_target: float | None = None
         self._pending_probe_alarm: dict[str, float] = {}
         self._probe_alarm_attempts: dict[str, int] = {}
+        self._trends = {
+            "probe0": TemperatureTrend(60, minimum_span_seconds=30),
+            "probe1": TemperatureTrend(1200, minimum_span_seconds=60),
+            "probe2": TemperatureTrend(1200, minimum_span_seconds=60),
+            "probe3": TemperatureTrend(1200, minimum_span_seconds=60),
+        }
+
+    def _update_predictions(self) -> None:
+        """Update rolling rates and meat ETA states from the latest readings."""
+        for probe, trend in self._trends.items():
+            trend.add(getattr(self.data, probe))
+
+        self.data.grill_heating_rate = self._trends["probe0"].rate_per_minute
+        for index in range(1, 4):
+            probe = f"probe{index}"
+            rate = self._trends[probe].rate_per_minute
+            setattr(self.data, f"{probe}_heating_rate", rate)
+            state, minutes = eta_state(
+                getattr(self.data, probe),
+                getattr(self.data, f"{probe}_alarm"),
+                rate,
+                self.data.probe0,
+            )
+            if minutes is not None and minutes > 0:
+                arrival = dt_util.now() + timedelta(minutes=minutes)
+                state = f"{state} — {arrival.strftime('%b %d, %H:%M')}"
+            setattr(self.data, f"{probe}_target_eta", state)
+            setattr(self.data, f"{probe}_eta_minutes", minutes)
 
     @property
     def target_temp(self) -> float:
@@ -342,6 +384,7 @@ class InkbirdCoordinator:
                         self.data.probe2 = decoded.get("probe2")
                         self.data.probe3 = decoded.get("probe3")
                         self.data.fan_speed = decoded.get("fan_speed")
+                        self._update_predictions()
                         _LOGGER.warning("FFF2 decoded: %s", decoded)
                         poll_ok = True
                     except Exception as exc:

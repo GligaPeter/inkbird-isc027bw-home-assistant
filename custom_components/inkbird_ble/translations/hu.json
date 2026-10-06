@@ -1,0 +1,42 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Inkbird ISC-027BW beállítása",
+        "description": "Az Inkbird grillszabályzó Bluetooth MAC-címe",
+        "data": {
+          "address": "Bluetooth MAC-cím"
+        }
+      }
+    },
+    "abort": {
+      "already_configured": "Az eszköz már be van állítva"
+    }
+  },
+  "entity": {
+    "sensor": {
+      "probe0": {"name": "Belső hőmérséklet"},
+      "probe1": {"name": "Szonda 1"},
+      "probe2": {"name": "Szonda 2"},
+      "probe3": {"name": "Szonda 3"},
+      "fan_speed": {"name": "Ventilátor-fordulatszám"},
+      "grill_target_actual": {"name": "Célhőmérséklet (eszköz)"},
+      "grill_heating_rate": {"name": "Grill hőmérséklet-változása"},
+      "probe1_heating_rate": {"name": "Szonda 1 melegedési sebessége"},
+      "probe2_heating_rate": {"name": "Szonda 2 melegedési sebessége"},
+      "probe3_heating_rate": {"name": "Szonda 3 melegedési sebessége"},
+      "probe1_target_eta": {"name": "Szonda 1 várható célideje"},
+      "probe2_target_eta": {"name": "Szonda 2 várható célideje"},
+      "probe3_target_eta": {"name": "Szonda 3 várható célideje"}
+    },
+    "number": {
+      "target_temp": {"name": "Grill célhőmérséklete"},
+      "probe1_alarm": {"name": "Szonda 1 riasztási hőmérséklete"},
+      "probe2_alarm": {"name": "Szonda 2 riasztási hőmérséklete"},
+      "probe3_alarm": {"name": "Szonda 3 riasztási hőmérséklete"}
+    },
+    "switch": {
+      "fan_switch": {"name": "Ventilátor"}
+    }
+  }
+}
