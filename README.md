@@ -4,6 +4,20 @@ An unofficial, fully local Home Assistant setup for the Inkbird ISC-027BW
 Bluetooth grill controller. It combines a corrected custom integration with a
 predictive Kamado dashboard and reusable iPhone alarms.
 
+## Dashboard preview
+
+### Grill temperature, prediction and fan activity
+
+![Grill temperature prediction with fan activity](docs/images/grill-temperature-fan-prediction.png)
+
+### Individual meat-probe ETA
+
+![Individual meat probe temperature and predicted target time](docs/images/meat-probe-prediction.png)
+
+### Combined meat-probe predictions and targets
+
+![All meat probes with measured temperatures, predictions and targets](docs/images/all-meat-probes-prediction.png)
+
 ## What is included
 
 - Four live temperature channels and fan data over BLE.
