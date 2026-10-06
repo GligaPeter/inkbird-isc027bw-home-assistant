@@ -1,0 +1,1360 @@
+title: Kamado
+views:
+  - type: sections
+    sections:
+      - type: grid
+        cards:
+          - type: markdown
+            content: >-
+              {% set source = 'sensor.inkbird_isc_027bw_fan_speed' %} {% set
+              sensor_state = states(source) %} {% set online = sensor_state not
+              in ['unknown', 'unavailable', 'none'] %} <ha-alert alert-type="{{
+              'success' if online else 'error' }}">
+                <center><strong>{{ 'Controller online' if online else 'Controller offline' }}</strong></center>
+              </ha-alert>
+            grid_options:
+              columns: full
+          - type: heading
+            heading: Grill
+            heading_style: title
+          - type: markdown
+            content: >-
+              <center><h1>{{
+              states('sensor.inkbird_isc_027bw_internal_temperature') }}
+              °C</h1></center>
+            grid_options:
+              columns: full
+            visibility:
+              - condition: state
+                entity: sensor.inkbird_isc_027bw_internal_temperature
+                state_not: unknown
+              - condition: state
+                entity: sensor.inkbird_isc_027bw_internal_temperature
+                state_not: unavailable
+          - type: custom:apexcharts-card
+            header:
+              show: true
+              title: Grill · Temperature & prediction
+            graph_span: 90min
+            span:
+              start: minute
+              offset: -1h
+            now:
+              show: true
+              label: Now
+              color: '#777777'
+            apex_config:
+              chart:
+                height: 330
+                animations:
+                  enabled: false
+                events:
+                  mounted: >-
+                    EVAL:function(chart) { const endpoints = [1].map(i => {
+                    const points = chart.w.config.series[i]?.data || []; const
+                    last = points[points.length - 1]; return Array.isArray(last)
+                    ? last[0] : last?.x; }).filter(Number.isFinite); const
+                    endpoint = endpoints.length ? Math.max(...endpoints) :
+                    Math.floor(Date.now() / 60000) * 60000; if
+                    (Math.abs(Number(chart.w.config.xaxis.max) - endpoint) >
+                    1000) chart.updateOptions({xaxis: {max: endpoint}}, false,
+                    false, false); }
+                  updated: >-
+                    EVAL:function(chart) { const endpoints = [1].map(i => {
+                    const points = chart.w.config.series[i]?.data || []; const
+                    last = points[points.length - 1]; return Array.isArray(last)
+                    ? last[0] : last?.x; }).filter(Number.isFinite); const
+                    endpoint = endpoints.length ? Math.max(...endpoints) :
+                    Math.floor(Date.now() / 60000) * 60000; if
+                    (Math.abs(Number(chart.w.config.xaxis.max) - endpoint) >
+                    1000) chart.updateOptions({xaxis: {max: endpoint}}, false,
+                    false, false); }
+              xaxis:
+                labels:
+                  datetimeUTC: false
+            yaxis:
+              - id: temperature
+                decimals: 1
+                apex_config:
+                  title:
+                    text: Temperature (°C)
+              - id: fan
+                opposite: true
+                min: 0
+                max: 100
+                decimals: 0
+                apex_config:
+                  title:
+                    text: Fan (%)
+            series:
+              - entity: sensor.inkbird_isc_027bw_internal_temperature
+                transform: >-
+                  const value = Number.parseFloat(x); return
+                  Number.isFinite(value) && value !== 0 ? value : null;
+                yaxis_id: temperature
+                name: Measured
+                color: '#1976d2'
+                stroke_width: 3
+                curve: stepline
+                extend_to: now
+              - entity: sensor.inkbird_isc_027bw_grill_heating_rate
+                yaxis_id: temperature
+                name: Predicted
+                unit: °C
+                color: '#ef6c00'
+                stroke_width: 3
+                stroke_dash: 7
+                curve: straight
+                extend_to: false
+                show:
+                  legend_value: false
+                data_generator: >
+                  const probe =
+                  hass.states['sensor.inkbird_isc_027bw_internal_temperature'];
+
+                  const temperature = Number.parseFloat(probe?.state);
+
+                  const target =
+                  Number.parseFloat(hass.states['number.inkbird_isc_027bw_grill_target_temperature']?.state);
+
+                  const rate = Number.parseFloat(entity.state);
+
+                  const now = Date.now();
+
+                  if (![temperature, target, rate].every(Number.isFinite))
+                  return [];
+
+
+                  if (Math.abs(rate) <= 0.02) return [[now, temperature], [now +
+                  5 * 60000, temperature]];
+
+                  const eta = (target - temperature) / rate;
+
+                  const forecastMinutes = rate < 0 ? 30 : 5;
+
+                  const horizon = eta > 0 ? Math.min(eta, forecastMinutes) :
+                  forecastMinutes;
+
+                  const upperBound = Math.max(temperature, target) + 2;
+
+                  const lowerBound = Math.max(0, Math.min(temperature, target) -
+                  2);
+
+                  const visibleMinutes = rate > 0 ? (upperBound - temperature) /
+                  rate : (lowerBound - temperature) / rate;
+
+                  const limit = Math.min(horizon, visibleMinutes, (end.getTime()
+                  - now) / 60000);
+
+                  if (limit <= 0) return [];
+
+                  return [[now, temperature], [now + limit * 60000, temperature
+                  + rate * limit]];
+              - entity: number.inkbird_isc_027bw_grill_target_temperature
+                yaxis_id: temperature
+                name: Target
+                unit: °C
+                color: '#388e3c'
+                stroke_width: 2
+                stroke_dash: 3
+                extend_to: false
+                data_generator: |
+                  const target = Number.parseFloat(entity.state);
+                  if (!Number.isFinite(target)) return [];
+                  return [[start.getTime(), target], [end.getTime(), target]];
+              - entity: sensor.inkbird_isc_027bw_fan_speed
+                name: Fan speed
+                yaxis_id: fan
+                unit: '%'
+                type: area
+                color: '#8e24aa'
+                opacity: 0.18
+                stroke_width: 1
+                curve: stepline
+                extend_to: now
+            grid_options:
+              columns: full
+            visibility:
+              - condition: state
+                entity: sensor.inkbird_isc_027bw_internal_temperature
+                state_not: unknown
+              - condition: state
+                entity: sensor.inkbird_isc_027bw_internal_temperature
+                state_not: unavailable
+          - type: markdown
+            content: >-
+              {% set source = 'sensor.inkbird_isc_027bw_internal_temperature'
+              %} {% set temperature = states(source) | float(none) %} {% set
+              target =
+              states('number.inkbird_isc_027bw_grill_target_temperature') |
+              float(none) %} {% set rate =
+              states('sensor.inkbird_isc_027bw_grill_heating_rate') |
+              float(none) %} {% if temperature is none %}
+                Sensor not connected
+              {% elif target is none %}
+                No target temperature
+              {% elif (temperature - target) | abs <= 0.5 %}
+                At target temperature
+              {% elif rate is none %}
+                Collecting heating data
+              {% elif rate | abs <= 0.02 %}
+                Stable trend — no reliable arrival estimate
+              {% else %}
+                {% set minutes = (target - temperature) / rate %}
+                {% if minutes <= 0 %}
+                  {{ "Cooling" if rate < 0 else "Heating" }} away from target — showing a {{ 30 if rate < 0 else 5 }}-minute trend
+                {% elif minutes > 120 %}
+                  Slow temperature change — showing a {{ 30 if rate < 0 else 5 }}-minute trend
+                {% else %}
+                  {% set rounded_minutes = [1, (minutes / 5) | round(0, 'ceil') | int * 5] | max %}
+                  About {{ rounded_minutes }} min remaining — {{ (now() + timedelta(minutes=rounded_minutes)).strftime('%b %d, %H:%M') }} ({{ "cooling" if rate < 0 else "heating" }} trend estimate)
+                {% endif %}
+              {% endif %}
+            grid_options:
+              columns: full
+          - type: tile
+            entity: number.inkbird_isc_027bw_grill_target_temperature
+            features:
+              - type: numeric-input
+            grid_options:
+              columns: full
+            visibility:
+              - condition: state
+                entity: sensor.inkbird_isc_027bw_internal_temperature
+                state_not: unknown
+              - condition: state
+                entity: sensor.inkbird_isc_027bw_internal_temperature
+                state_not: unavailable
+          - type: tile
+            entity: switch.inkbird_isc_027bw_fan
+            features:
+              - type: toggle
+            grid_options:
+              columns: full
+            visibility:
+              - condition: state
+                entity: sensor.inkbird_isc_027bw_internal_temperature
+                state_not: unknown
+              - condition: state
+                entity: sensor.inkbird_isc_027bw_internal_temperature
+                state_not: unavailable
+          - type: tile
+            entity: sensor.inkbird_isc_027bw_fan_speed
+            features:
+              - type: bar-gauge
+            grid_options:
+              columns: full
+            visibility:
+              - condition: state
+                entity: sensor.inkbird_isc_027bw_internal_temperature
+                state_not: unknown
+              - condition: state
+                entity: sensor.inkbird_isc_027bw_internal_temperature
+                state_not: unavailable
+        column_span: 4
+      - type: grid
+        cards:
+          - type: heading
+            heading: Meat 1
+            heading_style: title
+          - type: markdown
+            content: >-
+              <center><h1>{{ states('sensor.inkbird_isc_027bw_probe_1') }}
+              °C</h1></center>
+            grid_options:
+              columns: full
+            visibility:
+              - condition: state
+                entity: sensor.inkbird_isc_027bw_probe_1
+                state_not: unknown
+              - condition: state
+                entity: sensor.inkbird_isc_027bw_probe_1
+                state_not: unavailable
+          - type: custom:apexcharts-card
+            header:
+              show: true
+              title: Meat 1 · Temperature & prediction
+            graph_span: 6h
+            span:
+              start: minute
+              offset: -2h
+            now:
+              show: true
+              label: Now
+              color: '#777777'
+            apex_config:
+              chart:
+                height: 330
+                animations:
+                  enabled: false
+                events:
+                  mounted: >-
+                    EVAL:function(chart) { const endpoints = [1].map(i => {
+                    const points = chart.w.config.series[i]?.data || []; const
+                    last = points[points.length - 1]; return Array.isArray(last)
+                    ? last[0] : last?.x; }).filter(Number.isFinite); const
+                    endpoint = endpoints.length ? Math.max(...endpoints) :
+                    Math.floor(Date.now() / 60000) * 60000; if
+                    (Math.abs(Number(chart.w.config.xaxis.max) - endpoint) >
+                    1000) chart.updateOptions({xaxis: {max: endpoint}}, false,
+                    false, false); }
+                  updated: >-
+                    EVAL:function(chart) { const endpoints = [1].map(i => {
+                    const points = chart.w.config.series[i]?.data || []; const
+                    last = points[points.length - 1]; return Array.isArray(last)
+                    ? last[0] : last?.x; }).filter(Number.isFinite); const
+                    endpoint = endpoints.length ? Math.max(...endpoints) :
+                    Math.floor(Date.now() / 60000) * 60000; if
+                    (Math.abs(Number(chart.w.config.xaxis.max) - endpoint) >
+                    1000) chart.updateOptions({xaxis: {max: endpoint}}, false,
+                    false, false); }
+              stroke:
+                dashArray:
+                  - 0
+                  - 7
+                  - 3
+              xaxis:
+                labels:
+                  datetimeUTC: false
+            yaxis:
+              - decimals: 0
+            series:
+              - entity: sensor.inkbird_isc_027bw_probe_1
+                transform: >-
+                  const value = Number.parseFloat(x); return
+                  Number.isFinite(value) && value !== 0 ? value : null;
+                name: Measured
+                color: '#1976d2'
+                stroke_width: 3
+                curve: stepline
+                extend_to: now
+              - entity: sensor.inkbird_isc_027bw_probe_1_heating_rate
+                name: Predicted
+                stroke_dash: 7
+                unit: °C
+                color: '#ef6c00'
+                stroke_width: 3
+                extend_to: false
+                show:
+                  legend_value: false
+                data_generator: >
+                  const probe =
+                  hass.states['sensor.inkbird_isc_027bw_probe_1'];
+
+                  const grill =
+                  hass.states['sensor.inkbird_isc_027bw_internal_temperature'];
+
+                  const goal =
+                  hass.states['number.inkbird_isc_027bw_probe_1_alarm_temperature'];
+
+                  const temperature = Number.parseFloat(probe?.state);
+
+                  const chamber = Number.parseFloat(grill?.state);
+
+                  const target = Number.parseFloat(goal?.state);
+
+                  const rate = Number.parseFloat(entity.state);
+
+                  const now = Date.now();
+
+                  if (![temperature, chamber, target,
+                  rate].every(Number.isFinite) || rate <= 0.02 || target <=
+                  temperature || chamber <= target) return [];
+
+
+                  const gap = chamber - temperature;
+
+                  const coefficient = rate / gap;
+
+                  const eta = Math.log(gap / (chamber - target)) / coefficient;
+
+                  if (eta > 2880) return [];
+
+                  const limit = Math.min(eta, (end.getTime() - now) / 60000);
+
+                  const points = [];
+
+                  for (let minutes = 0; minutes < limit; minutes += 2) {
+                    points.push([now + minutes * 60000, chamber - gap * Math.exp(-coefficient * minutes)]);
+                  }
+
+                  if (limit >= 0) points.push([now + limit * 60000, chamber -
+                  gap * Math.exp(-coefficient * limit)]);
+
+                  return points;
+              - entity: number.inkbird_isc_027bw_probe_1_alarm_temperature
+                name: Target
+                stroke_dash: 3
+                unit: °C
+                color: '#388e3c'
+                stroke_width: 2
+                extend_to: false
+                data_generator: |
+                  const target = Number.parseFloat(entity.state);
+                  if (!Number.isFinite(target)) return [];
+                  return [[start.getTime(), target], [end.getTime(), target]];
+            grid_options:
+              columns: full
+            visibility:
+              - condition: state
+                entity: sensor.inkbird_isc_027bw_probe_1
+                state_not: unknown
+              - condition: state
+                entity: sensor.inkbird_isc_027bw_probe_1
+                state_not: unavailable
+          - type: tile
+            entity: sensor.inkbird_isc_027bw_probe_1_target_eta
+            grid_options:
+              columns: full
+            visibility:
+              - condition: state
+                entity: sensor.inkbird_isc_027bw_probe_1
+                state_not: unknown
+              - condition: state
+                entity: sensor.inkbird_isc_027bw_probe_1
+                state_not: unavailable
+          - type: tile
+            entity: sensor.inkbird_isc_027bw_probe_1_heating_rate
+            grid_options:
+              columns: full
+            visibility:
+              - condition: state
+                entity: sensor.inkbird_isc_027bw_probe_1
+                state_not: unknown
+              - condition: state
+                entity: sensor.inkbird_isc_027bw_probe_1
+                state_not: unavailable
+          - type: tile
+            entity: number.inkbird_isc_027bw_probe_1_alarm_temperature
+            features:
+              - type: numeric-input
+            grid_options:
+              columns: full
+            visibility:
+              - condition: state
+                entity: sensor.inkbird_isc_027bw_probe_1
+                state_not: unknown
+              - condition: state
+                entity: sensor.inkbird_isc_027bw_probe_1
+                state_not: unavailable
+          - show_name: true
+            show_icon: false
+            type: button
+            entity: number.inkbird_isc_027bw_probe_1_alarm_temperature
+            name: Probe 1 - Preset 73 °C
+            show_state: false
+            tap_action:
+              action: perform-action
+              perform_action: number.set_value
+              target:
+                entity_id: number.inkbird_isc_027bw_probe_1_alarm_temperature
+              data:
+                value: 73
+            hold_action:
+              action: more-info
+            grid_options:
+              columns: full
+              rows: 1
+            visibility:
+              - condition: state
+                entity: sensor.inkbird_isc_027bw_probe_1
+                state_not: unknown
+              - condition: state
+                entity: sensor.inkbird_isc_027bw_probe_1
+                state_not: unavailable
+          - show_name: true
+            show_icon: false
+            type: button
+            entity: number.inkbird_isc_027bw_probe_1_alarm_temperature
+            name: Probe 1 - Preset 92 °C
+            show_state: false
+            tap_action:
+              action: perform-action
+              perform_action: number.set_value
+              target:
+                entity_id: number.inkbird_isc_027bw_probe_1_alarm_temperature
+              data:
+                value: 92
+            hold_action:
+              action: more-info
+            grid_options:
+              columns: full
+              rows: 1
+            visibility:
+              - condition: state
+                entity: sensor.inkbird_isc_027bw_probe_1
+                state_not: unknown
+              - condition: state
+                entity: sensor.inkbird_isc_027bw_probe_1
+                state_not: unavailable
+          - type: markdown
+            content: '**Sensor not connected**'
+            grid_options:
+              columns: full
+            visibility:
+              - condition: or
+                conditions:
+                  - condition: state
+                    entity: sensor.inkbird_isc_027bw_probe_1
+                    state: unknown
+                  - condition: state
+                    entity: sensor.inkbird_isc_027bw_probe_1
+                    state: unavailable
+        column_span: 4
+      - type: grid
+        cards:
+          - type: heading
+            heading: Meat 2
+            heading_style: title
+          - type: markdown
+            content: >-
+              <center><h1>{{ states('sensor.inkbird_isc_027bw_probe_2') }}
+              °C</h1></center>
+            grid_options:
+              columns: full
+            visibility:
+              - condition: state
+                entity: sensor.inkbird_isc_027bw_probe_2
+                state_not: unknown
+              - condition: state
+                entity: sensor.inkbird_isc_027bw_probe_2
+                state_not: unavailable
+          - type: custom:apexcharts-card
+            header:
+              show: true
+              title: Meat 2 · Temperature & prediction
+            graph_span: 6h
+            span:
+              start: minute
+              offset: -2h
+            now:
+              show: true
+              label: Now
+              color: '#777777'
+            apex_config:
+              chart:
+                height: 330
+                animations:
+                  enabled: false
+                events:
+                  mounted: >-
+                    EVAL:function(chart) { const endpoints = [1].map(i => {
+                    const points = chart.w.config.series[i]?.data || []; const
+                    last = points[points.length - 1]; return Array.isArray(last)
+                    ? last[0] : last?.x; }).filter(Number.isFinite); const
+                    endpoint = endpoints.length ? Math.max(...endpoints) :
+                    Math.floor(Date.now() / 60000) * 60000; if
+                    (Math.abs(Number(chart.w.config.xaxis.max) - endpoint) >
+                    1000) chart.updateOptions({xaxis: {max: endpoint}}, false,
+                    false, false); }
+                  updated: >-
+                    EVAL:function(chart) { const endpoints = [1].map(i => {
+                    const points = chart.w.config.series[i]?.data || []; const
+                    last = points[points.length - 1]; return Array.isArray(last)
+                    ? last[0] : last?.x; }).filter(Number.isFinite); const
+                    endpoint = endpoints.length ? Math.max(...endpoints) :
+                    Math.floor(Date.now() / 60000) * 60000; if
+                    (Math.abs(Number(chart.w.config.xaxis.max) - endpoint) >
+                    1000) chart.updateOptions({xaxis: {max: endpoint}}, false,
+                    false, false); }
+              stroke:
+                dashArray:
+                  - 0
+                  - 7
+                  - 3
+              xaxis:
+                labels:
+                  datetimeUTC: false
+            yaxis:
+              - decimals: 0
+            series:
+              - entity: sensor.inkbird_isc_027bw_probe_2
+                transform: >-
+                  const value = Number.parseFloat(x); return
+                  Number.isFinite(value) && value !== 0 ? value : null;
+                name: Measured
+                color: '#1976d2'
+                stroke_width: 3
+                curve: stepline
+                extend_to: now
+              - entity: sensor.inkbird_isc_027bw_probe_2_heating_rate
+                name: Predicted
+                stroke_dash: 7
+                unit: °C
+                color: '#ef6c00'
+                stroke_width: 3
+                extend_to: false
+                show:
+                  legend_value: false
+                data_generator: >
+                  const probe =
+                  hass.states['sensor.inkbird_isc_027bw_probe_2'];
+
+                  const grill =
+                  hass.states['sensor.inkbird_isc_027bw_internal_temperature'];
+
+                  const goal =
+                  hass.states['number.inkbird_isc_027bw_probe_2_alarm_temperature'];
+
+                  const temperature = Number.parseFloat(probe?.state);
+
+                  const chamber = Number.parseFloat(grill?.state);
+
+                  const target = Number.parseFloat(goal?.state);
+
+                  const rate = Number.parseFloat(entity.state);
+
+                  const now = Date.now();
+
+                  if (![temperature, chamber, target,
+                  rate].every(Number.isFinite) || rate <= 0.02 || target <=
+                  temperature || chamber <= target) return [];
+
+
+                  const gap = chamber - temperature;
+
+                  const coefficient = rate / gap;
+
+                  const eta = Math.log(gap / (chamber - target)) / coefficient;
+
+                  if (eta > 2880) return [];
+
+                  const limit = Math.min(eta, (end.getTime() - now) / 60000);
+
+                  const points = [];
+
+                  for (let minutes = 0; minutes < limit; minutes += 2) {
+                    points.push([now + minutes * 60000, chamber - gap * Math.exp(-coefficient * minutes)]);
+                  }
+
+                  if (limit >= 0) points.push([now + limit * 60000, chamber -
+                  gap * Math.exp(-coefficient * limit)]);
+
+                  return points;
+              - entity: number.inkbird_isc_027bw_probe_2_alarm_temperature
+                name: Target
+                stroke_dash: 3
+                unit: °C
+                color: '#388e3c'
+                stroke_width: 2
+                extend_to: false
+                data_generator: |
+                  const target = Number.parseFloat(entity.state);
+                  if (!Number.isFinite(target)) return [];
+                  return [[start.getTime(), target], [end.getTime(), target]];
+            grid_options:
+              columns: full
+            visibility:
+              - condition: state
+                entity: sensor.inkbird_isc_027bw_probe_2
+                state_not: unknown
+              - condition: state
+                entity: sensor.inkbird_isc_027bw_probe_2
+                state_not: unavailable
+          - type: tile
+            entity: sensor.inkbird_isc_027bw_probe_2_target_eta
+            grid_options:
+              columns: full
+            visibility:
+              - condition: state
+                entity: sensor.inkbird_isc_027bw_probe_2
+                state_not: unknown
+              - condition: state
+                entity: sensor.inkbird_isc_027bw_probe_2
+                state_not: unavailable
+          - type: tile
+            entity: sensor.inkbird_isc_027bw_probe_2_heating_rate
+            grid_options:
+              columns: full
+            visibility:
+              - condition: state
+                entity: sensor.inkbird_isc_027bw_probe_2
+                state_not: unknown
+              - condition: state
+                entity: sensor.inkbird_isc_027bw_probe_2
+                state_not: unavailable
+          - type: tile
+            entity: number.inkbird_isc_027bw_probe_2_alarm_temperature
+            features:
+              - type: numeric-input
+            grid_options:
+              columns: full
+            visibility:
+              - condition: state
+                entity: sensor.inkbird_isc_027bw_probe_2
+                state_not: unknown
+              - condition: state
+                entity: sensor.inkbird_isc_027bw_probe_2
+                state_not: unavailable
+          - show_name: true
+            show_icon: false
+            type: button
+            entity: number.inkbird_isc_027bw_probe_2_alarm_temperature
+            name: Probe 2 - Preset 73 °C
+            show_state: false
+            tap_action:
+              action: perform-action
+              perform_action: number.set_value
+              target:
+                entity_id: number.inkbird_isc_027bw_probe_2_alarm_temperature
+              data:
+                value: 73
+            hold_action:
+              action: more-info
+            grid_options:
+              columns: full
+              rows: 1
+            visibility:
+              - condition: state
+                entity: sensor.inkbird_isc_027bw_probe_2
+                state_not: unknown
+              - condition: state
+                entity: sensor.inkbird_isc_027bw_probe_2
+                state_not: unavailable
+          - show_name: true
+            show_icon: false
+            type: button
+            entity: number.inkbird_isc_027bw_probe_2_alarm_temperature
+            name: Probe 2 - Preset 92 °C
+            show_state: false
+            tap_action:
+              action: perform-action
+              perform_action: number.set_value
+              target:
+                entity_id: number.inkbird_isc_027bw_probe_2_alarm_temperature
+              data:
+                value: 92
+            hold_action:
+              action: more-info
+            grid_options:
+              columns: full
+              rows: 1
+            visibility:
+              - condition: state
+                entity: sensor.inkbird_isc_027bw_probe_2
+                state_not: unknown
+              - condition: state
+                entity: sensor.inkbird_isc_027bw_probe_2
+                state_not: unavailable
+          - type: markdown
+            content: '**Sensor not connected**'
+            grid_options:
+              columns: full
+            visibility:
+              - condition: or
+                conditions:
+                  - condition: state
+                    entity: sensor.inkbird_isc_027bw_probe_2
+                    state: unknown
+                  - condition: state
+                    entity: sensor.inkbird_isc_027bw_probe_2
+                    state: unavailable
+        column_span: 4
+      - type: grid
+        cards:
+          - type: heading
+            heading: Meat 3
+            heading_style: title
+          - type: markdown
+            content: >-
+              <center><h1>{{ states('sensor.inkbird_isc_027bw_probe_3') }}
+              °C</h1></center>
+            grid_options:
+              columns: full
+            visibility:
+              - condition: state
+                entity: sensor.inkbird_isc_027bw_probe_3
+                state_not: unknown
+              - condition: state
+                entity: sensor.inkbird_isc_027bw_probe_3
+                state_not: unavailable
+          - type: custom:apexcharts-card
+            header:
+              show: true
+              title: Meat 3 · Temperature & prediction
+            graph_span: 6h
+            span:
+              start: minute
+              offset: -2h
+            now:
+              show: true
+              label: Now
+              color: '#777777'
+            apex_config:
+              chart:
+                height: 330
+                animations:
+                  enabled: false
+                events:
+                  mounted: >-
+                    EVAL:function(chart) { const endpoints = [1].map(i => {
+                    const points = chart.w.config.series[i]?.data || []; const
+                    last = points[points.length - 1]; return Array.isArray(last)
+                    ? last[0] : last?.x; }).filter(Number.isFinite); const
+                    endpoint = endpoints.length ? Math.max(...endpoints) :
+                    Math.floor(Date.now() / 60000) * 60000; if
+                    (Math.abs(Number(chart.w.config.xaxis.max) - endpoint) >
+                    1000) chart.updateOptions({xaxis: {max: endpoint}}, false,
+                    false, false); }
+                  updated: >-
+                    EVAL:function(chart) { const endpoints = [1].map(i => {
+                    const points = chart.w.config.series[i]?.data || []; const
+                    last = points[points.length - 1]; return Array.isArray(last)
+                    ? last[0] : last?.x; }).filter(Number.isFinite); const
+                    endpoint = endpoints.length ? Math.max(...endpoints) :
+                    Math.floor(Date.now() / 60000) * 60000; if
+                    (Math.abs(Number(chart.w.config.xaxis.max) - endpoint) >
+                    1000) chart.updateOptions({xaxis: {max: endpoint}}, false,
+                    false, false); }
+              stroke:
+                dashArray:
+                  - 0
+                  - 7
+                  - 3
+              xaxis:
+                labels:
+                  datetimeUTC: false
+            yaxis:
+              - decimals: 0
+            series:
+              - entity: sensor.inkbird_isc_027bw_probe_3
+                transform: >-
+                  const value = Number.parseFloat(x); return
+                  Number.isFinite(value) && value !== 0 ? value : null;
+                name: Measured
+                color: '#1976d2'
+                stroke_width: 3
+                curve: stepline
+                extend_to: now
+              - entity: sensor.inkbird_isc_027bw_probe_3_heating_rate
+                name: Predicted
+                stroke_dash: 7
+                unit: °C
+                color: '#ef6c00'
+                stroke_width: 3
+                extend_to: false
+                show:
+                  legend_value: false
+                data_generator: >
+                  const probe =
+                  hass.states['sensor.inkbird_isc_027bw_probe_3'];
+
+                  const grill =
+                  hass.states['sensor.inkbird_isc_027bw_internal_temperature'];
+
+                  const goal =
+                  hass.states['number.inkbird_isc_027bw_probe_3_alarm_temperature'];
+
+                  const temperature = Number.parseFloat(probe?.state);
+
+                  const chamber = Number.parseFloat(grill?.state);
+
+                  const target = Number.parseFloat(goal?.state);
+
+                  const rate = Number.parseFloat(entity.state);
+
+                  const now = Date.now();
+
+                  if (![temperature, chamber, target,
+                  rate].every(Number.isFinite) || rate <= 0.02 || target <=
+                  temperature || chamber <= target) return [];
+
+
+                  const gap = chamber - temperature;
+
+                  const coefficient = rate / gap;
+
+                  const eta = Math.log(gap / (chamber - target)) / coefficient;
+
+                  if (eta > 2880) return [];
+
+                  const limit = Math.min(eta, (end.getTime() - now) / 60000);
+
+                  const points = [];
+
+                  for (let minutes = 0; minutes < limit; minutes += 2) {
+                    points.push([now + minutes * 60000, chamber - gap * Math.exp(-coefficient * minutes)]);
+                  }
+
+                  if (limit >= 0) points.push([now + limit * 60000, chamber -
+                  gap * Math.exp(-coefficient * limit)]);
+
+                  return points;
+              - entity: number.inkbird_isc_027bw_probe_3_alarm_temperature
+                name: Target
+                stroke_dash: 3
+                unit: °C
+                color: '#388e3c'
+                stroke_width: 2
+                extend_to: false
+                data_generator: |
+                  const target = Number.parseFloat(entity.state);
+                  if (!Number.isFinite(target)) return [];
+                  return [[start.getTime(), target], [end.getTime(), target]];
+            grid_options:
+              columns: full
+            visibility:
+              - condition: state
+                entity: sensor.inkbird_isc_027bw_probe_3
+                state_not: unknown
+              - condition: state
+                entity: sensor.inkbird_isc_027bw_probe_3
+                state_not: unavailable
+          - type: tile
+            entity: sensor.inkbird_isc_027bw_probe_3_target_eta
+            grid_options:
+              columns: full
+            visibility:
+              - condition: state
+                entity: sensor.inkbird_isc_027bw_probe_3
+                state_not: unknown
+              - condition: state
+                entity: sensor.inkbird_isc_027bw_probe_3
+                state_not: unavailable
+          - type: tile
+            entity: sensor.inkbird_isc_027bw_probe_3_heating_rate
+            grid_options:
+              columns: full
+            visibility:
+              - condition: state
+                entity: sensor.inkbird_isc_027bw_probe_3
+                state_not: unknown
+              - condition: state
+                entity: sensor.inkbird_isc_027bw_probe_3
+                state_not: unavailable
+          - type: tile
+            entity: number.inkbird_isc_027bw_probe_3_alarm_temperature
+            features:
+              - type: numeric-input
+            grid_options:
+              columns: full
+            visibility:
+              - condition: state
+                entity: sensor.inkbird_isc_027bw_probe_3
+                state_not: unknown
+              - condition: state
+                entity: sensor.inkbird_isc_027bw_probe_3
+                state_not: unavailable
+          - show_name: true
+            show_icon: false
+            type: button
+            entity: number.inkbird_isc_027bw_probe_3_alarm_temperature
+            name: Probe 3 - Preset 73 °C
+            show_state: false
+            tap_action:
+              action: perform-action
+              perform_action: number.set_value
+              target:
+                entity_id: number.inkbird_isc_027bw_probe_3_alarm_temperature
+              data:
+                value: 73
+            hold_action:
+              action: more-info
+            grid_options:
+              columns: full
+              rows: 1
+            visibility:
+              - condition: state
+                entity: sensor.inkbird_isc_027bw_probe_3
+                state_not: unknown
+              - condition: state
+                entity: sensor.inkbird_isc_027bw_probe_3
+                state_not: unavailable
+          - show_name: true
+            show_icon: false
+            type: button
+            entity: number.inkbird_isc_027bw_probe_3_alarm_temperature
+            name: Probe 3 - Preset 92 °C
+            show_state: false
+            tap_action:
+              action: perform-action
+              perform_action: number.set_value
+              target:
+                entity_id: number.inkbird_isc_027bw_probe_3_alarm_temperature
+              data:
+                value: 92
+            hold_action:
+              action: more-info
+            grid_options:
+              columns: full
+              rows: 1
+            visibility:
+              - condition: state
+                entity: sensor.inkbird_isc_027bw_probe_3
+                state_not: unknown
+              - condition: state
+                entity: sensor.inkbird_isc_027bw_probe_3
+                state_not: unavailable
+          - type: markdown
+            content: '**Sensor not connected**'
+            grid_options:
+              columns: full
+            visibility:
+              - condition: or
+                conditions:
+                  - condition: state
+                    entity: sensor.inkbird_isc_027bw_probe_3
+                    state: unknown
+                  - condition: state
+                    entity: sensor.inkbird_isc_027bw_probe_3
+                    state: unavailable
+        column_span: 4
+      - type: grid
+        column_span: 4
+        cards:
+          - type: heading
+            heading: All meat probes
+            heading_style: title
+          - type: custom:apexcharts-card
+            header:
+              show: true
+              title: All meat probes · Temperature & prediction
+            graph_span: 6h
+            span:
+              start: minute
+              offset: -2h
+            now:
+              show: true
+              label: Now
+              color: '#777777'
+            apex_config:
+              chart:
+                height: 380
+                animations:
+                  enabled: false
+                events:
+                  mounted: >-
+                    EVAL:function(chart) { const endpoints = [1, 3, 5].map(i =>
+                    { const points = chart.w.config.series[i]?.data || []; const
+                    last = points[points.length - 1]; return Array.isArray(last)
+                    ? last[0] : last?.x; }).filter(Number.isFinite); const
+                    endpoint = endpoints.length ? Math.max(...endpoints) :
+                    Math.floor(Date.now() / 60000) * 60000; if
+                    (Math.abs(Number(chart.w.config.xaxis.max) - endpoint) >
+                    1000) chart.updateOptions({xaxis: {max: endpoint}}, false,
+                    false, false); }
+                  updated: >-
+                    EVAL:function(chart) { const endpoints = [1, 3, 5].map(i =>
+                    { const points = chart.w.config.series[i]?.data || []; const
+                    last = points[points.length - 1]; return Array.isArray(last)
+                    ? last[0] : last?.x; }).filter(Number.isFinite); const
+                    endpoint = endpoints.length ? Math.max(...endpoints) :
+                    Math.floor(Date.now() / 60000) * 60000; if
+                    (Math.abs(Number(chart.w.config.xaxis.max) - endpoint) >
+                    1000) chart.updateOptions({xaxis: {max: endpoint}}, false,
+                    false, false); }
+              xaxis:
+                labels:
+                  datetimeUTC: false
+            yaxis:
+              - decimals: 1
+                apex_config:
+                  title:
+                    text: Temperature (°C)
+            series:
+              - entity: sensor.inkbird_isc_027bw_probe_1
+                transform: >-
+                  const value = Number.parseFloat(x); return
+                  Number.isFinite(value) && value !== 0 ? value : null;
+                name: Meat 1 · Measured
+                color: '#1976d2'
+                stroke_width: 3
+                curve: stepline
+                extend_to: false
+              - entity: sensor.inkbird_isc_027bw_probe_1_heating_rate
+                name: Meat 1 · Predicted
+                stroke_dash: 7
+                unit: °C
+                color: '#1976d2'
+                stroke_width: 3
+                extend_to: false
+                show:
+                  legend_value: false
+                data_generator: >
+                  const probe =
+                  hass.states['sensor.inkbird_isc_027bw_probe_1'];
+
+                  const grill =
+                  hass.states['sensor.inkbird_isc_027bw_internal_temperature'];
+
+                  const goal =
+                  hass.states['number.inkbird_isc_027bw_probe_1_alarm_temperature'];
+
+                  const temperature = Number.parseFloat(probe?.state);
+
+                  const chamber = Number.parseFloat(grill?.state);
+
+                  const target = Number.parseFloat(goal?.state);
+
+                  const rate = Number.parseFloat(entity.state);
+
+                  const now = Date.now();
+
+                  if (![temperature, chamber, target,
+                  rate].every(Number.isFinite) || rate <= 0.02 || target <=
+                  temperature || chamber <= target) return [];
+
+
+                  const gap = chamber - temperature;
+
+                  const coefficient = rate / gap;
+
+                  const eta = Math.log(gap / (chamber - target)) / coefficient;
+
+                  if (eta > 2880) return [];
+
+                  const limit = Math.min(eta, (end.getTime() - now) / 60000);
+
+                  const points = [];
+
+                  for (let minutes = 0; minutes < limit; minutes += 2) {
+                    points.push([now + minutes * 60000, chamber - gap * Math.exp(-coefficient * minutes)]);
+                  }
+
+                  if (limit >= 0) points.push([now + limit * 60000, chamber -
+                  gap * Math.exp(-coefficient * limit)]);
+
+                  return points;
+              - entity: sensor.inkbird_isc_027bw_probe_2
+                transform: >-
+                  const value = Number.parseFloat(x); return
+                  Number.isFinite(value) && value !== 0 ? value : null;
+                name: Meat 2 · Measured
+                color: '#ef6c00'
+                stroke_width: 3
+                curve: stepline
+                extend_to: false
+              - entity: sensor.inkbird_isc_027bw_probe_2_heating_rate
+                name: Meat 2 · Predicted
+                stroke_dash: 7
+                unit: °C
+                color: '#ef6c00'
+                stroke_width: 3
+                extend_to: false
+                show:
+                  legend_value: false
+                data_generator: >
+                  const probe =
+                  hass.states['sensor.inkbird_isc_027bw_probe_2'];
+
+                  const grill =
+                  hass.states['sensor.inkbird_isc_027bw_internal_temperature'];
+
+                  const goal =
+                  hass.states['number.inkbird_isc_027bw_probe_2_alarm_temperature'];
+
+                  const temperature = Number.parseFloat(probe?.state);
+
+                  const chamber = Number.parseFloat(grill?.state);
+
+                  const target = Number.parseFloat(goal?.state);
+
+                  const rate = Number.parseFloat(entity.state);
+
+                  const now = Date.now();
+
+                  if (![temperature, chamber, target,
+                  rate].every(Number.isFinite) || rate <= 0.02 || target <=
+                  temperature || chamber <= target) return [];
+
+
+                  const gap = chamber - temperature;
+
+                  const coefficient = rate / gap;
+
+                  const eta = Math.log(gap / (chamber - target)) / coefficient;
+
+                  if (eta > 2880) return [];
+
+                  const limit = Math.min(eta, (end.getTime() - now) / 60000);
+
+                  const points = [];
+
+                  for (let minutes = 0; minutes < limit; minutes += 2) {
+                    points.push([now + minutes * 60000, chamber - gap * Math.exp(-coefficient * minutes)]);
+                  }
+
+                  if (limit >= 0) points.push([now + limit * 60000, chamber -
+                  gap * Math.exp(-coefficient * limit)]);
+
+                  return points;
+              - entity: sensor.inkbird_isc_027bw_probe_3
+                transform: >-
+                  const value = Number.parseFloat(x); return
+                  Number.isFinite(value) && value !== 0 ? value : null;
+                name: Meat 3 · Measured
+                color: '#8e24aa'
+                stroke_width: 3
+                curve: stepline
+                extend_to: false
+              - entity: sensor.inkbird_isc_027bw_probe_3_heating_rate
+                name: Meat 3 · Predicted
+                stroke_dash: 7
+                unit: °C
+                color: '#8e24aa'
+                stroke_width: 3
+                extend_to: false
+                show:
+                  legend_value: false
+                data_generator: >
+                  const probe =
+                  hass.states['sensor.inkbird_isc_027bw_probe_3'];
+
+                  const grill =
+                  hass.states['sensor.inkbird_isc_027bw_internal_temperature'];
+
+                  const goal =
+                  hass.states['number.inkbird_isc_027bw_probe_3_alarm_temperature'];
+
+                  const temperature = Number.parseFloat(probe?.state);
+
+                  const chamber = Number.parseFloat(grill?.state);
+
+                  const target = Number.parseFloat(goal?.state);
+
+                  const rate = Number.parseFloat(entity.state);
+
+                  const now = Date.now();
+
+                  if (![temperature, chamber, target,
+                  rate].every(Number.isFinite) || rate <= 0.02 || target <=
+                  temperature || chamber <= target) return [];
+
+
+                  const gap = chamber - temperature;
+
+                  const coefficient = rate / gap;
+
+                  const eta = Math.log(gap / (chamber - target)) / coefficient;
+
+                  if (eta > 2880) return [];
+
+                  const limit = Math.min(eta, (end.getTime() - now) / 60000);
+
+                  const points = [];
+
+                  for (let minutes = 0; minutes < limit; minutes += 2) {
+                    points.push([now + minutes * 60000, chamber - gap * Math.exp(-coefficient * minutes)]);
+                  }
+
+                  if (limit >= 0) points.push([now + limit * 60000, chamber -
+                  gap * Math.exp(-coefficient * limit)]);
+
+                  return points;
+              - entity: number.inkbird_isc_027bw_probe_1_alarm_temperature
+                name: Meat 1 · Target
+                unit: °C
+                color: '#1976d2'
+                stroke_width: 2
+                stroke_dash: 3
+                extend_to: false
+                data_generator: >
+                  const probe =
+                  hass.states['sensor.inkbird_isc_027bw_probe_1'];
+
+                  const temperature = Number.parseFloat(probe?.state);
+
+                  const target = Number.parseFloat(entity.state);
+
+                  if (![temperature, target].every(Number.isFinite)) return [];
+
+
+                  return [[start.getTime(), target], [end.getTime(), target]];
+              - entity: number.inkbird_isc_027bw_probe_2_alarm_temperature
+                name: Meat 2 · Target
+                unit: °C
+                color: '#ef6c00'
+                stroke_width: 2
+                stroke_dash: 3
+                extend_to: false
+                data_generator: >
+                  const probe =
+                  hass.states['sensor.inkbird_isc_027bw_probe_2'];
+
+                  const temperature = Number.parseFloat(probe?.state);
+
+                  const target = Number.parseFloat(entity.state);
+
+                  if (![temperature, target].every(Number.isFinite)) return [];
+
+
+                  return [[start.getTime(), target], [end.getTime(), target]];
+              - entity: number.inkbird_isc_027bw_probe_3_alarm_temperature
+                name: Meat 3 · Target
+                unit: °C
+                color: '#8e24aa'
+                stroke_width: 2
+                stroke_dash: 3
+                extend_to: false
+                data_generator: >
+                  const probe =
+                  hass.states['sensor.inkbird_isc_027bw_probe_3'];
+
+                  const temperature = Number.parseFloat(probe?.state);
+
+                  const target = Number.parseFloat(entity.state);
+
+                  if (![temperature, target].every(Number.isFinite)) return [];
+
+
+                  return [[start.getTime(), target], [end.getTime(), target]];
+            grid_options:
+              columns: full
+            visibility:
+              - condition: or
+                conditions:
+                  - condition: and
+                    conditions:
+                      - condition: state
+                        entity: sensor.inkbird_isc_027bw_probe_1
+                        state_not: unknown
+                      - condition: state
+                        entity: sensor.inkbird_isc_027bw_probe_1
+                        state_not: unavailable
+                  - condition: and
+                    conditions:
+                      - condition: state
+                        entity: sensor.inkbird_isc_027bw_probe_2
+                        state_not: unknown
+                      - condition: state
+                        entity: sensor.inkbird_isc_027bw_probe_2
+                        state_not: unavailable
+                  - condition: and
+                    conditions:
+                      - condition: state
+                        entity: sensor.inkbird_isc_027bw_probe_3
+                        state_not: unknown
+                      - condition: state
+                        entity: sensor.inkbird_isc_027bw_probe_3
+                        state_not: unavailable
+          - type: markdown
+            content: '**No sensor connected**'
+            grid_options:
+              columns: full
+            visibility:
+              - condition: and
+                conditions:
+                  - condition: or
+                    conditions:
+                      - condition: state
+                        entity: sensor.inkbird_isc_027bw_probe_1
+                        state: unknown
+                      - condition: state
+                        entity: sensor.inkbird_isc_027bw_probe_1
+                        state: unavailable
+                  - condition: or
+                    conditions:
+                      - condition: state
+                        entity: sensor.inkbird_isc_027bw_probe_2
+                        state: unknown
+                      - condition: state
+                        entity: sensor.inkbird_isc_027bw_probe_2
+                        state: unavailable
+                  - condition: or
+                    conditions:
+                      - condition: state
+                        entity: sensor.inkbird_isc_027bw_probe_3
+                        state: unknown
+                      - condition: state
+                        entity: sensor.inkbird_isc_027bw_probe_3
+                        state: unavailable

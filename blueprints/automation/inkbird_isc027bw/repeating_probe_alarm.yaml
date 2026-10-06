@@ -1,0 +1,95 @@
+blueprint:
+  name: Inkbird ISC-027BW repeating probe alarm
+  description: >-
+    Sends an iOS critical notification when a probe reaches its target.
+    The notification repeats every minute until Acknowledge is tapped.
+    Import this blueprint once and create one automation per probe.
+  domain: automation
+  author: ISC-027BW Home Assistant Kit contributors
+  input:
+    temperature_sensor:
+      name: Probe temperature sensor
+      selector:
+        entity:
+          filter:
+            - domain: sensor
+              device_class: temperature
+    target_temperature:
+      name: Probe target temperature
+      selector:
+        entity:
+          filter:
+            - domain: number
+              device_class: temperature
+    notify_service:
+      name: Phone notification action
+      description: "Example: notify.mobile_app_my_iphone"
+      selector:
+        text: {}
+    probe_name:
+      name: Probe name
+      default: Meat probe
+      selector:
+        text: {}
+
+trigger_variables:
+  temperature_entity: !input temperature_sensor
+  target_entity: !input target_temperature
+
+triggers:
+  - trigger: template
+    value_template: >-
+      {% set temperature = states(temperature_entity) | float(none) %}
+      {% set target = states(target_entity) | float(none) %}
+      {{ temperature is not none and target is not none and target > 0 and temperature >= target }}
+
+conditions: []
+
+variables:
+  temperature_entity: !input temperature_sensor
+  target_entity: !input target_temperature
+  notify_service_name: !input notify_service
+  configured_probe_name: !input probe_name
+  alarm_target: "{{ states(target_entity) }}"
+  reached_temperature: "{{ states(temperature_entity) }}"
+  acknowledge_action: "{{ 'ACK_INKBIRD_' ~ context.id }}"
+  notification_tag: "{{ 'inkbird_target_' ~ (temperature_entity | slugify) }}"
+
+actions:
+  - repeat:
+      sequence:
+        - action: "{{ notify_service_name }}"
+          data:
+            title: "{{ configured_probe_name }} reached its target"
+            message: >-
+              Target: {{ alarm_target }} °C. Temperature:
+              {{ states(temperature_entity) if is_number(states(temperature_entity)) else reached_temperature }} °C.
+              Acknowledge to stop this alarm.
+            data:
+              tag: "{{ notification_tag }}"
+              push:
+                sound:
+                  name: default
+                  critical: 1
+                  volume: 1.0
+              actions:
+                - action: "{{ acknowledge_action }}"
+                  title: Acknowledge
+        - wait_for_trigger:
+            - trigger: event
+              event_type: mobile_app_notification_action
+          timeout: "00:01:00"
+          continue_on_timeout: true
+      until:
+        - condition: template
+          value_template: >-
+            {{ wait.trigger is not none
+               and wait.trigger.event.data.action == acknowledge_action }}
+  - action: "{{ notify_service_name }}"
+    data:
+      message: clear_notification
+      data:
+        tag: "{{ notification_tag }}"
+
+mode: single
+max_exceeded: silent

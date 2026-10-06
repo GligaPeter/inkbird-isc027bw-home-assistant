@@ -1,0 +1,127 @@
+# Predictive helpers for the Inkbird ISC-027BW dashboard.
+#
+# If Home Assistant generated different entity IDs for your integration,
+# replace the four source/target entity IDs below and the matching IDs in
+# dashboard/kamado-dashboard.yaml.
+
+sensor:
+  - platform: derivative
+    source: sensor.inkbird_isc_027bw_internal_temperature
+    name: Inkbird ISC-027BW Grill heating rate
+    unique_id: inkbird_isc027bw_grill_heating_rate
+    unit_time: min
+    time_window: "00:01:00"
+    round: 3
+
+  - platform: derivative
+    source: sensor.inkbird_isc_027bw_probe_1
+    name: Inkbird ISC-027BW Probe 1 heating rate
+    unique_id: inkbird_isc027bw_probe_1_heating_rate
+    unit_time: min
+    time_window: "00:20:00"
+    round: 3
+
+  - platform: derivative
+    source: sensor.inkbird_isc_027bw_probe_2
+    name: Inkbird ISC-027BW Probe 2 heating rate
+    unique_id: inkbird_isc027bw_probe_2_heating_rate
+    unit_time: min
+    time_window: "00:20:00"
+    round: 3
+
+  - platform: derivative
+    source: sensor.inkbird_isc_027bw_probe_3
+    name: Inkbird ISC-027BW Probe 3 heating rate
+    unique_id: inkbird_isc027bw_probe_3_heating_rate
+    unit_time: min
+    time_window: "00:20:00"
+    round: 3
+
+template:
+  - sensor:
+      - name: Inkbird ISC-027BW Probe 1 target ETA
+        unique_id: inkbird_isc027bw_probe_1_target_eta
+        icon: mdi:timer-outline
+        state: >-
+          {% set probe = states('sensor.inkbird_isc_027bw_probe_1') | float(none) %}
+          {% set chamber = states('sensor.inkbird_isc_027bw_internal_temperature') | float(none) %}
+          {% set target = states('number.inkbird_isc_027bw_probe_1_alarm_temperature') | float(none) %}
+          {% set rate = states('sensor.inkbird_isc_027bw_probe_1_heating_rate') | float(none) %}
+          {% if probe is none %}Sensor not connected
+          {% elif target is none %}No target temperature
+          {% elif probe >= target %}Target reached
+          {% elif rate is none %}Collecting heating data
+          {% elif rate <= 0.02 %}Stalled or cooling — no reliable estimate
+          {% elif chamber is none or chamber <= target %}Chamber temperature is too low for this target
+          {% else %}
+            {% set gap = chamber - probe %}
+            {% set target_gap = chamber - target %}
+            {% if gap <= 0 or target_gap <= 0 %}No reliable estimate
+            {% else %}
+              {% set coefficient = rate / gap %}
+              {% set minutes = (gap / target_gap) | log / coefficient %}
+              {% if minutes <= 0 or minutes > 2880 %}No reliable estimate
+              {% else %}
+                {% set rounded = [1, (minutes / 5) | round(0, 'ceil') | int * 5] | max %}
+                About {{ rounded }} min — {{ (now() + timedelta(minutes=rounded)).strftime('%b %d, %H:%M') }}
+              {% endif %}
+            {% endif %}
+          {% endif %}
+
+      - name: Inkbird ISC-027BW Probe 2 target ETA
+        unique_id: inkbird_isc027bw_probe_2_target_eta
+        icon: mdi:timer-outline
+        state: >-
+          {% set probe = states('sensor.inkbird_isc_027bw_probe_2') | float(none) %}
+          {% set chamber = states('sensor.inkbird_isc_027bw_internal_temperature') | float(none) %}
+          {% set target = states('number.inkbird_isc_027bw_probe_2_alarm_temperature') | float(none) %}
+          {% set rate = states('sensor.inkbird_isc_027bw_probe_2_heating_rate') | float(none) %}
+          {% if probe is none %}Sensor not connected
+          {% elif target is none %}No target temperature
+          {% elif probe >= target %}Target reached
+          {% elif rate is none %}Collecting heating data
+          {% elif rate <= 0.02 %}Stalled or cooling — no reliable estimate
+          {% elif chamber is none or chamber <= target %}Chamber temperature is too low for this target
+          {% else %}
+            {% set gap = chamber - probe %}
+            {% set target_gap = chamber - target %}
+            {% if gap <= 0 or target_gap <= 0 %}No reliable estimate
+            {% else %}
+              {% set coefficient = rate / gap %}
+              {% set minutes = (gap / target_gap) | log / coefficient %}
+              {% if minutes <= 0 or minutes > 2880 %}No reliable estimate
+              {% else %}
+                {% set rounded = [1, (minutes / 5) | round(0, 'ceil') | int * 5] | max %}
+                About {{ rounded }} min — {{ (now() + timedelta(minutes=rounded)).strftime('%b %d, %H:%M') }}
+              {% endif %}
+            {% endif %}
+          {% endif %}
+
+      - name: Inkbird ISC-027BW Probe 3 target ETA
+        unique_id: inkbird_isc027bw_probe_3_target_eta
+        icon: mdi:timer-outline
+        state: >-
+          {% set probe = states('sensor.inkbird_isc_027bw_probe_3') | float(none) %}
+          {% set chamber = states('sensor.inkbird_isc_027bw_internal_temperature') | float(none) %}
+          {% set target = states('number.inkbird_isc_027bw_probe_3_alarm_temperature') | float(none) %}
+          {% set rate = states('sensor.inkbird_isc_027bw_probe_3_heating_rate') | float(none) %}
+          {% if probe is none %}Sensor not connected
+          {% elif target is none %}No target temperature
+          {% elif probe >= target %}Target reached
+          {% elif rate is none %}Collecting heating data
+          {% elif rate <= 0.02 %}Stalled or cooling — no reliable estimate
+          {% elif chamber is none or chamber <= target %}Chamber temperature is too low for this target
+          {% else %}
+            {% set gap = chamber - probe %}
+            {% set target_gap = chamber - target %}
+            {% if gap <= 0 or target_gap <= 0 %}No reliable estimate
+            {% else %}
+              {% set coefficient = rate / gap %}
+              {% set minutes = (gap / target_gap) | log / coefficient %}
+              {% if minutes <= 0 or minutes > 2880 %}No reliable estimate
+              {% else %}
+                {% set rounded = [1, (minutes / 5) | round(0, 'ceil') | int * 5] | max %}
+                About {{ rounded }} min — {{ (now() + timedelta(minutes=rounded)).strftime('%b %d, %H:%M') }}
+              {% endif %}
+            {% endif %}
+          {% endif %}
