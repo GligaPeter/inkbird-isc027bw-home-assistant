@@ -146,8 +146,8 @@ class InkbirdCoordinator:
         self._target_temp: float = 100.0
         self._listeners: list[Callable] = []
         self._task: asyncio.Task | None = None
-        self._fff1_current: bytes = bytes(20)
-        self._fff3_current: bytes = bytes(20)
+        self._fff1_current: bytes | None = None
+        self._fff3_current: bytes | None = None
         self._pending_fan_on: bool | None = None
         self._pending_target: float | None = None
         self._pending_probe_alarm: dict[str, float] = {}
@@ -266,6 +266,9 @@ class InkbirdCoordinator:
             cancel()
 
     async def _connect_and_run(self) -> None:
+        # Never reuse settings from a previous Bluetooth connection.
+        self._fff1_current = None
+        self._fff3_current = None
         ble_device = async_ble_device_from_address(
             self.hass, self.address, connectable=True
         )
@@ -290,18 +293,19 @@ class InkbirdCoordinator:
                 chars = [(c.uuid[-4:], f"h={c.handle}", f"props={c.properties}",
                           [f"d={d.uuid[-4:]}@{d.handle}" for d in c.descriptors])
                          for c in svc.characteristics]
-                _LOGGER.warning("BLE Service %s: %s", svc.uuid[-4:], chars)
-            self.data.connected = True
+                _LOGGER.debug("BLE Service %s: %s", svc.uuid[-4:], chars)
 
             # FFF3 lesen — Zieltemp + Sonden-Alarme
             try:
                 fff3_init = bytes(await asyncio.wait_for(
                     client.read_gatt_char(FFF3), timeout=10.0
                 ))
+                if len(fff3_init) != 20:
+                    raise ValueError("Invalid FFF3 settings frame length")
                 self._fff3_current = fff3_init
                 tgt_f10 = struct.unpack_from("<H", fff3_init, 0)[0]
                 tgt_c = _f10_to_c(tgt_f10)
-                _LOGGER.warning("FFF3 Zieltemp: %d F×10 → %s°C", tgt_f10, tgt_c)
+                _LOGGER.debug("FFF3 Zieltemp: %d F×10 → %s°C", tgt_f10, tgt_c)
                 if tgt_c is not None and self._pending_target is None:
                     self._target_temp = tgt_c
                     self.data.grill_target_actual = tgt_c
@@ -309,22 +313,27 @@ class InkbirdCoordinator:
                 self.data.probe1_alarm = self._pending_probe_alarm.get("probe1_alarm", alarms["probe1_alarm"])
                 self.data.probe2_alarm = self._pending_probe_alarm.get("probe2_alarm", alarms["probe2_alarm"])
                 self.data.probe3_alarm = self._pending_probe_alarm.get("probe3_alarm", alarms["probe3_alarm"])
-                _LOGGER.warning("FFF3 Sonden-Alarme: %s", alarms)
+                _LOGGER.debug("FFF3 Sonden-Alarme: %s", alarms)
             except Exception as exc:
                 _LOGGER.warning("FFF3 read Fehler: %s", exc)
+                raise
 
             # FFF1 lesen (Gerätestatus: fan on/off, Modus, Drehzahl)
             try:
                 fff1_init = bytes(await asyncio.wait_for(
                     client.read_gatt_char(FFF1), timeout=10.0
                 ))
+                if len(fff1_init) != 20:
+                    raise ValueError("Invalid FFF1 settings frame length")
                 self._fff1_current = fff1_init
                 self.data.fan_on = bool(fff1_init[0])
-                _LOGGER.warning("FFF1 Lüfter: %s", "AN" if self.data.fan_on else "AUS")
+                _LOGGER.debug("FFF1 Lüfter: %s", "AN" if self.data.fan_on else "AUS")
             except Exception as exc:
                 _LOGGER.warning("FFF1 read Fehler: %s", exc)
+                raise
 
-            _LOGGER.warning("Init abgeschlossen — starte Polling-Loop")
+            self.data.connected = True
+            _LOGGER.debug("Init abgeschlossen — starte Polling-Loop")
             self._notify()
 
             consecutive_errors = 0
@@ -335,20 +344,21 @@ class InkbirdCoordinator:
                         break
 
                     # FFF1 Write (Lüfter An/Aus)
-                    if self._pending_fan_on is not None:
+                    if self._pending_fan_on is not None and self._fff1_current is not None:
                         fan_on = self._pending_fan_on
-                        self._pending_fan_on = None
                         fff1_new = build_fff1(self._fff1_current, fan_on=fan_on)
                         try:
                             await client.write_gatt_char(FFF1, fff1_new, response=True)
+                            if self._pending_fan_on == fan_on:
+                                self._pending_fan_on = None
                             self._fff1_current = fff1_new
                             self.data.fan_on = fan_on
-                            _LOGGER.warning("FFF1 geschrieben: fan=%s", fan_on)
+                            _LOGGER.debug("FFF1 geschrieben: fan=%s", fan_on)
                         except BleakError as exc:
                             _LOGGER.warning("FFF1 Write Fehler: %s", exc)
 
                     # FFF3 Write (Zieltemp und/oder Sonden-Alarme) — in einem einzigen Write
-                    if self._pending_target is not None or self._pending_probe_alarm:
+                    if self._fff3_current is not None and (self._pending_target is not None or self._pending_probe_alarm):
                         target = self._pending_target
                         alarms = self._pending_probe_alarm.copy() if self._pending_probe_alarm else None
                         self._pending_target = None
@@ -358,12 +368,12 @@ class InkbirdCoordinator:
                             await client.write_gatt_char(FFF3, fff3_new, response=True)
                             self._fff3_current = fff3_new
                             if target is not None:
-                                _LOGGER.warning("FFF3 Zieltemp geschrieben: %.1f°C", self._target_temp)
+                                _LOGGER.debug("FFF3 Zieltemp geschrieben: %.1f°C", self._target_temp)
                             if alarms:
                                 for probe, value in alarms.items():
                                     if self._pending_probe_alarm.get(probe) == value:
                                         self._probe_alarm_attempts[probe] = self._probe_alarm_attempts.get(probe, 0) + 1
-                                _LOGGER.warning("FFF3 Sonden-Alarme geschrieben: %s", alarms)
+                                _LOGGER.debug("FFF3 Sonden-Alarme geschrieben: %s", alarms)
                         except BleakError as exc:
                             if target is not None and self._pending_target is None:
                                 self._pending_target = target
@@ -377,7 +387,7 @@ class InkbirdCoordinator:
                         fff2 = bytes(await asyncio.wait_for(
                             client.read_gatt_char(FFF2), timeout=8.0
                         ))
-                        _LOGGER.warning("FFF2 gelesen: %s", fff2.hex(" "))
+                        _LOGGER.debug("FFF2 gelesen: %s", fff2.hex(" "))
                         decoded = decode_fff2(fff2)
                         self.data.probe0 = decoded.get("probe0")
                         self.data.probe1 = decoded.get("probe1")
@@ -385,7 +395,7 @@ class InkbirdCoordinator:
                         self.data.probe3 = decoded.get("probe3")
                         self.data.fan_speed = decoded.get("fan_speed")
                         self._update_predictions()
-                        _LOGGER.warning("FFF2 decoded: %s", decoded)
+                        _LOGGER.debug("FFF2 decoded: %s", decoded)
                         poll_ok = True
                     except Exception as exc:
                         _LOGGER.warning("FFF2 read Fehler: %s", exc)
@@ -395,7 +405,9 @@ class InkbirdCoordinator:
                         fff1 = bytes(await asyncio.wait_for(
                             client.read_gatt_char(FFF1), timeout=8.0
                         ))
-                        _LOGGER.warning("FFF1 gelesen: %s", fff1.hex(" "))
+                        _LOGGER.debug("FFF1 gelesen: %s", fff1.hex(" "))
+                        if len(fff1) != 20:
+                            raise ValueError("Invalid FFF1 settings frame length")
                         self._fff1_current = fff1
                         self.data.fan_on = bool(fff1[0])
                         poll_ok = True
@@ -407,7 +419,9 @@ class InkbirdCoordinator:
                         fff3 = bytes(await asyncio.wait_for(
                             client.read_gatt_char(FFF3), timeout=8.0
                         ))
-                        _LOGGER.warning("FFF3 gelesen: %s", fff3.hex(" "))
+                        _LOGGER.debug("FFF3 gelesen: %s", fff3.hex(" "))
+                        if len(fff3) != 20:
+                            raise ValueError("Invalid FFF3 settings frame length")
                         self._fff3_current = fff3
                         tgt_f10 = struct.unpack_from("<H", fff3, 0)[0]
                         self.data.grill_target_actual = _f10_to_c(tgt_f10)
@@ -418,7 +432,7 @@ class InkbirdCoordinator:
                                 if actual is not None and abs(actual - desired) <= 0.1:
                                     self._pending_probe_alarm.pop(probe, None)
                                     self._probe_alarm_attempts.pop(probe, None)
-                                    _LOGGER.warning("Probe alarm confirmed: %s = %.1f C", probe, actual)
+                                    _LOGGER.debug("Probe alarm confirmed: %s = %.1f C", probe, actual)
                                 elif self._probe_alarm_attempts.get(probe, 0) >= 3:
                                     self._pending_probe_alarm.pop(probe, None)
                                     self._probe_alarm_attempts.pop(probe, None)

@@ -1,5 +1,12 @@
 # Changelog
 
+## 1.4.1
+
+- Require complete settings reads before sending device changes; reconnect on failed initialization.
+- Preserve pending changes across initialization failures and failed fan writes.
+- Reset settings buffers on each connection and reject incomplete settings frames.
+- Move routine BLE frames and successful operations to debug logging.
+
 ## 1.4.0
 
 - Move grill and meat-probe trend calculation into the integration.
