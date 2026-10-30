@@ -23,7 +23,6 @@ class InkbirdFanSwitch(SwitchEntity):
     _attr_has_entity_name = True
     _attr_translation_key = "fan_switch"
     _attr_icon = "mdi:fan"
-    _attr_available = True  # immer verfügbar — zeigt aus wenn getrennt
 
     def __init__(self, coordinator: InkbirdCoordinator, entry: ConfigEntry) -> None:
         self._coordinator = coordinator
@@ -44,6 +43,14 @@ class InkbirdFanSwitch(SwitchEntity):
     @callback
     def _handle_update(self) -> None:
         self.async_write_ha_state()
+
+    @property
+    def available(self) -> bool:
+        return (
+            self._coordinator.data.connected
+            and self._coordinator.data.probe0 is not None
+            and self._coordinator.data.fan_speed is not None
+        )
 
     @property
     def is_on(self) -> bool:

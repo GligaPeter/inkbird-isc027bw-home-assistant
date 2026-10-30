@@ -1,5 +1,12 @@
 # Changelog
 
+## 1.4.2
+
+- Include the proven local fan read-back confirmation and retry behavior: keep a request pending until confirmed and stop after three unconfirmed writes.
+- Make the fan switch unavailable and reject commands when controller telemetry is unavailable.
+- Preserve the safe settings initialization from 1.4.1 and existing integrated temperature predictions.
+- Add regression coverage for confirmed, unconfirmed and failed fan writes, including preservation of unrelated device settings.
+
 ## 1.4.1
 
 - Require complete settings reads before sending device changes; reconnect on failed initialization.

@@ -19,6 +19,7 @@ from homeassistant.components.bluetooth import (
 )
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
+from homeassistant.exceptions import HomeAssistantError
 from homeassistant.util import dt as dt_util
 
 from .prediction import TemperatureTrend, eta_state
@@ -149,6 +150,7 @@ class InkbirdCoordinator:
         self._fff1_current: bytes | None = None
         self._fff3_current: bytes | None = None
         self._pending_fan_on: bool | None = None
+        self._fan_on_attempts: int = 0
         self._pending_target: float | None = None
         self._pending_probe_alarm: dict[str, float] = {}
         self._probe_alarm_attempts: dict[str, int] = {}
@@ -209,7 +211,10 @@ class InkbirdCoordinator:
                 pass
 
     async def async_set_fan_on(self, on: bool) -> None:
+        if not self.data.connected or self.data.probe0 is None or self.data.fan_speed is None:
+            raise HomeAssistantError("Inkbird controller is not connected")
         self._pending_fan_on = on
+        self._fan_on_attempts = 0
         self.data.fan_on = on
         self._notify()
 
@@ -266,7 +271,6 @@ class InkbirdCoordinator:
             cancel()
 
     async def _connect_and_run(self) -> None:
-        # Never reuse settings from a previous Bluetooth connection.
         self._fff1_current = None
         self._fff3_current = None
         ble_device = async_ble_device_from_address(
@@ -301,7 +305,7 @@ class InkbirdCoordinator:
                     client.read_gatt_char(FFF3), timeout=10.0
                 ))
                 if len(fff3_init) != 20:
-                    raise ValueError("Invalid FFF3 settings frame length")
+                    raise ValueError("Invalid settings frame length")
                 self._fff3_current = fff3_init
                 tgt_f10 = struct.unpack_from("<H", fff3_init, 0)[0]
                 tgt_c = _f10_to_c(tgt_f10)
@@ -324,7 +328,7 @@ class InkbirdCoordinator:
                     client.read_gatt_char(FFF1), timeout=10.0
                 ))
                 if len(fff1_init) != 20:
-                    raise ValueError("Invalid FFF1 settings frame length")
+                    raise ValueError("Invalid settings frame length")
                 self._fff1_current = fff1_init
                 self.data.fan_on = bool(fff1_init[0])
                 _LOGGER.debug("FFF1 Lüfter: %s", "AN" if self.data.fan_on else "AUS")
@@ -349,11 +353,10 @@ class InkbirdCoordinator:
                         fff1_new = build_fff1(self._fff1_current, fan_on=fan_on)
                         try:
                             await client.write_gatt_char(FFF1, fff1_new, response=True)
-                            if self._pending_fan_on == fan_on:
-                                self._pending_fan_on = None
                             self._fff1_current = fff1_new
                             self.data.fan_on = fan_on
-                            _LOGGER.debug("FFF1 geschrieben: fan=%s", fan_on)
+                            self._fan_on_attempts += 1
+                            _LOGGER.debug("FFF1 geschrieben: fan=%s (attempt %d)", fan_on, self._fan_on_attempts)
                         except BleakError as exc:
                             _LOGGER.warning("FFF1 Write Fehler: %s", exc)
 
@@ -407,9 +410,20 @@ class InkbirdCoordinator:
                         ))
                         _LOGGER.debug("FFF1 gelesen: %s", fff1.hex(" "))
                         if len(fff1) != 20:
-                            raise ValueError("Invalid FFF1 settings frame length")
+                            raise ValueError("Invalid settings frame length")
                         self._fff1_current = fff1
-                        self.data.fan_on = bool(fff1[0])
+                        actual_fan_on = bool(fff1[0])
+                        desired_fan_on = self._pending_fan_on
+                        self.data.fan_on = actual_fan_on
+                        if desired_fan_on is not None:
+                            if actual_fan_on == desired_fan_on:
+                                self._pending_fan_on = None
+                                self._fan_on_attempts = 0
+                                _LOGGER.debug("Fan state confirmed: %s", actual_fan_on)
+                            elif self._fan_on_attempts >= 3:
+                                self._pending_fan_on = None
+                                self._fan_on_attempts = 0
+                                _LOGGER.error("Fan state not confirmed after 3 writes: requested=%s actual=%s", desired_fan_on, actual_fan_on)
                         poll_ok = True
                     except Exception as exc:
                         _LOGGER.warning("FFF1 read Fehler: %s", exc)
@@ -421,7 +435,7 @@ class InkbirdCoordinator:
                         ))
                         _LOGGER.debug("FFF3 gelesen: %s", fff3.hex(" "))
                         if len(fff3) != 20:
-                            raise ValueError("Invalid FFF3 settings frame length")
+                            raise ValueError("Invalid settings frame length")
                         self._fff3_current = fff3
                         tgt_f10 = struct.unpack_from("<H", fff3, 0)[0]
                         self.data.grill_target_actual = _f10_to_c(tgt_f10)
@@ -454,6 +468,7 @@ class InkbirdCoordinator:
                 pass
 
         self.data.connected = False
+        self._fan_on_attempts = 0
         self._notify()
         _LOGGER.info("Inkbird getrennt — reconnect in 5s")
         await asyncio.sleep(5)
