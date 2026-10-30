@@ -70,10 +70,31 @@ If the button cannot open your Home Assistant instance:
    **Integration** repository.
 3. Search for **Inkbird ISC-027BW BLE**, download it and restart Home Assistant.
 
+#### Updates and release notes
+
+The latest stable release, release notes and manual download are on the
+[Releases page](https://github.com/GligaPeter/inkbird-isc027bw-home-assistant/releases/latest).
+The full version history is in [CHANGELOG.md](CHANGELOG.md).
+
+If this repository was downloaded through HACS, new stable releases are picked up
+by HACS update checks and can appear under **Settings → Updates** after HACS
+refreshes repository information. Keep this repository tracked and its update
+entity enabled. Restart Home Assistant when you are ready to activate an integration
+update; downloading an update does not itself load the new Python code.
+
+Manual installations are not automatically tracked by HACS. HACS users tracking
+`777Timo/inkbird-ble-ha` are tracking the original repository, not this fork, and
+will not automatically receive this fork's releases. Back up the existing files
+before migrating, manage only one `inkbird_ble` repository, and preserve the
+existing integration configuration and entity registry.
+
 #### Manual installation
 
-1. Copy `custom_components/inkbird_ble` into the `custom_components` directory
-   under your Home Assistant configuration directory.
+1. Download the `inkbird_ble-v<VERSION>.zip` asset from the
+   [latest release](https://github.com/GligaPeter/inkbird-isc027bw-home-assistant/releases/latest)
+   and extract it into your Home Assistant configuration directory. The archive
+   contains `custom_components/inkbird_ble/`. Alternatively, copy that directory
+   from the repository into your existing `custom_components` directory.
 2. Restart Home Assistant.
 3. Open **Settings → Devices & services → Add integration**.
 4. Search for **Inkbird ISC-027BW BLE** and enter the controller's BLE address.
